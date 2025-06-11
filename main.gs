@@ -74,14 +74,20 @@ function call_llm(systemContent, userContent, llmType=null) {
 }
 
 
+// ['2025-06-01', '2025-06-08', '2025-06-15', '2025-06-22', '2025-06-29', '2025-07-06', '2025-07-13', '2025-07-20', '2025-07-27', '2025-08-03']
+// [16, 15, 12, 10, 15, 20, 22, 14, 15, 16]
+
+
 /**
  * Makes request to Z-union API.
  */
-function fetchData(times=['2025-06-01', '2025-06-08', '2025-06-15', '2025-06-22', '2025-06-29', '2025-07-06', '2025-07-13', '2025-07-20', '2025-07-27', '2025-08-03'], values=[16, 15, 12, 10, 15, 20, 22, 14, 15, 16], target=2) {
+function fetchData(times, values, target) {
+  const modelName = PropertiesService.getScriptProperties().getProperty("TS_MODEL") || "AutoARIMA";
   const payload = {
     times: times,
     values: values,
-    target: target
+    target: target,
+    model_name: modelName
   };
   const options = {
     method: "post",
@@ -153,8 +159,6 @@ function predict(history, target) {
  */
 function createSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // Create new empy Sheet for item
   var sheetItem = ss.getSheetByName("Item");
   if (sheetItem != null) {
       ss.deleteSheet(sheetItem);
@@ -239,12 +243,15 @@ function showSidebar() {
 }
 
 /**
- * Create and predefine LLM as global parameter.
+ * Create and predefine models as global parameter.
  */
 function initDefaults() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty("LLM")) {
     props.setProperty("LLM", "gpt-4.1-mini");
+  }
+  if (!props.getProperty("TS_MODEL")) {
+    props.setProperty("TS_MODEL", "AutoARIMA");
   }
 }
 
@@ -254,7 +261,16 @@ function initDefaults() {
  */
 function selectModel(form) {
   PropertiesService.getScriptProperties().setProperty("LLM", form.model);
-  SpreadsheetApp.getActiveSpreadsheet().toast("Current model is " + PropertiesService.getScriptProperties().getProperty("LLM") + ".");
+  SpreadsheetApp.getActiveSpreadsheet().toast("Current LLM is " + PropertiesService.getScriptProperties().getProperty("LLM") + ".");
+}
+
+
+/**
+ * Sets TS_MODEL as global parameter.
+ */
+function selectTSModel(modelName) {
+  PropertiesService.getScriptProperties().setProperty("TS_MODEL", modelName);
+  SpreadsheetApp.getActiveSpreadsheet().toast("Current TS model is " + PropertiesService.getScriptProperties().getProperty("TS_MODEL") + ".");
 }
 
 
