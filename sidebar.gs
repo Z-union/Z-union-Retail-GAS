@@ -79,11 +79,21 @@
     </style>
     <script>
         function submitForm() {
-            var form = document.getElementById("modelForm");
+            var form = document.getElementById("llmForm");
             if (form.model.value) {
                 google.script.run.selectModel(form);
             } else {
-                alert("Please select a model.");
+                alert("Please select LLM.");
+            }
+        }
+
+        function submitTSForm() {
+            const form = document.getElementById("tsForm");
+            if (form.ts_model.value) {
+                google.script.run.selectTSModel(form.ts_model.value); 
+                // 
+            } else {
+                alert("Please select a time series model.");
             }
         }
 
@@ -101,10 +111,23 @@
     </script>
 </head>
 <body>
-    <form id="modelForm">
+    <form id="tsForm">
+        <fieldset id="tsmodel">
+            <legend>TS Model</legend>
+            <input type="radio" id="autoarima" name="ts_model" value="AutoARIMA">
+            <label for="autoarima">AutoARIMA</label><br>
+            <input type="radio" id="autotbats" name="ts_model" value="AutoTBATS">
+            <label for="autotbats">AutoTBATS</label><br>
+        </fieldset>
+        <input type="button" value="Submit" onclick="submitTSForm();">
+    </form>
+
+    <div class="spacer"></div>
+
+    <form id="llmForm">
         <!-- OpenAI API Models -->
         <fieldset id="openai">
-            <legend>OpenAI API</legend>
+            <legend>LLM</legend>
             <input type="radio" id="gpt-4o-mini" name="model" value="gpt-4o-mini">
             <label for="gpt-4o-mini">GPT 4 (Omni mini)</label><br>
             <input type="radio" id="gpt-4.1-nano" name="model" value="gpt-4.1-nano">
@@ -120,7 +143,7 @@
     <form id="outputForm">
         <fieldset>
             <legend>LLM Output</legend>
-            <textarea id="llm_output" rows="20" style="width:100%" readonly></textarea>
+            <textarea id="llm_output" rows="6" style="width:100%" readonly></textarea>
         </fieldset>
         <input type="button" value="Interpret" onclick="runInterpretation();">
     </form>
