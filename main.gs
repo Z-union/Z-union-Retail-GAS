@@ -83,6 +83,8 @@ function call_llm(systemContent, userContent, llmType=null) {
  */
 function fetchData(times, values, target) {
   const modelName = PropertiesService.getScriptProperties().getProperty("TS_MODEL") || "AutoARIMA";
+  console.log(times);
+  console.log(values);
   const payload = {
     times: times,
     values: values,
@@ -153,9 +155,58 @@ function predict(history, target) {
 }
 
 
+function predict2(range_str="H1:DG2", target=15) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const range = sheet.getRange(range_str);
+  const history = range.getValues();
+
+  if (history.length !== 2) {
+    throw new Error("History must be 2D: 1st row for timestamps, 2nd for values.");
+  }
+
+  const timestamps = history[0]
+    .map(e => new Date(e))
+    .filter(d => !isNaN(d))
+    .map(d => d.toISOString().slice(0, 10));
+
+  const values = history[1].map(Number);
+  const forecast = fetchData(timestamps, values, target);
+
+  const forecast_filtered = forecast.map(v => {
+    const val = Math.ceil(v);
+    return val < 0 ? 0 : val;
+  });
+
+  const systemPrompt = `
+    You are analytics assistant. 
+    Your main task is to interpret time series forecast and explain it.
+    # Input:
+    - Time series: given values of time series
+    - Forecast: predicted values of time series
+    # Output:
+    - String with text interpretation of the forecast.
+    ## Additional comments:
+    - Considered time series represent sales volume on marketplace.
+    - Forecast is made by ARIMA model and is post-processed to be non-negative integers.
+    - You should comment forecast based on given time series, e.g. explain zeros or drop.
+    - Your response should contain only text with interpretation without any additional comments or wrapping like json.
+    - Answer briefly in Russian language.
+  `.trim();
+
+  const userPrompt = `Time series: ${values.join(', ')}\nForecast: ${forecast_filtered.join(', ')}`;
+  const interpretation = call_llm(systemPrompt, userPrompt);
+
+  const writeStartCol = range.getLastColumn() + 1;
+  sheet.getRange(range.getRow() + 1, writeStartCol, 1, forecast_filtered.length)
+    .setValues([forecast_filtered]);
+
+  return interpretation;
+}
+
+
+
 /**
  * Creates new sheet according to the template.
- * @customfunction
  */
 function createSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -271,14 +322,6 @@ function selectModel(form) {
 function selectTSModel(modelName) {
   PropertiesService.getScriptProperties().setProperty("TS_MODEL", modelName);
   SpreadsheetApp.getActiveSpreadsheet().toast("Current TS model is " + PropertiesService.getScriptProperties().getProperty("TS_MODEL") + ".");
-}
-
-
-/**
- * Gets LLM interpretation of the forecast.
- */
-function getInterpretation() {
-  return PropertiesService.getScriptProperties().getProperty("INTERPRETATION");
 }
 
 
