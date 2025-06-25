@@ -74,22 +74,24 @@ function call_llm(systemContent, userContent, llmType=null) {
 }
 
 
-// ['2025-06-01', '2025-06-08', '2025-06-15', '2025-06-22', '2025-06-29', '2025-07-06', '2025-07-13', '2025-07-20', '2025-07-27', '2025-08-03']
-// [16, 15, 12, 10, 15, 20, 22, 14, 15, 16]
-
-
 /**
  * Makes request to Z-union API.
  */
 function fetchData(times, values, target) {
-  const modelName = PropertiesService.getScriptProperties().getProperty("TS_MODEL") || "AutoARIMA";
+  const props = PropertiesService.getScriptProperties();
+  const modelName = props.getProperty("TS_MODEL") || "AutoARIMA";
+  const fitTimestamps = props.getProperty("FIT_TIMESTAMPS") === "true";
+  const seasonality = Number(props.getProperty("SEASONALITY")) || 48;
+
   console.log(times);
   console.log(values);
   const payload = {
     times: times,
     values: values,
     target: target,
-    model_name: modelName
+    model_name: modelName,
+    fit_timestamps: fitTimestamps,
+    seasonality: seasonality
   };
   const options = {
     method: "post",
@@ -104,8 +106,12 @@ function fetchData(times, values, target) {
     throw new Error("Error: " + code + " → " + response.getContentText());
   }
   const json = JSON.parse(response.getContentText());
-  console.log(json.forecast);
-  return json.forecast;
+  console.log("Forecast:", json.forecast);
+  console.log("Timestamps:", json.timestamps);
+  return {
+    forecast: json.forecast,
+    timestamps: json.timestamps || []
+  };
 }
 
 
@@ -115,48 +121,10 @@ function fetchData(times, values, target) {
  * @param {Array<Array<any>>} history A 2-row range: first row = timestamps, second = values.
  * @param {number} target number of steps to predict.
  * @return {Array<Array<number>>} Horizontal array of predicted values.
- * @customfunction
  */
-function predict(history, target) {
-  if (!Array.isArray(history) || history.length !== 2) {
-    throw new Error("History must be 2D: 1st row for timestamps, 2nd for values.");
-  }
-  const timestamps = history[0]
-    .map(e => new Date(e))                  
-    .filter(d => !isNaN(d))                    
-    .map(d => d.toISOString().slice(0, 10));
-  const values = history[1].map(Number);
-  const forecast = fetchData(timestamps, values, target);
-  const forecast_filtered = forecast.map(v => {
-    const val = Math.ceil(v);
-    return val < 0 ? 0 : val;
-  });
-
-  var systemContent = `
-    You are analytics assistant. 
-    Your main task is to interpret time series forcast and explain it.
-    # Input:
-    - Time series: given values of time series
-    - Forecast: predicted values of time series
-    # Output:
-    - String with text interpretation of the forcast.
-    ## Additional comments:
-    - Considered time series represent sales volume on marketplace.
-    - Forecast is made by ARIMA model and is post-processed to be non-negative integers.
-    - You should comment forecast based on given time series, e.g. explain zeros or drop.
-    - Your response should contain only text with interpretation without any additional comments or wrapping like json.
-    - Answer briefly in Russian language.
-  `.trim();
-  var userContent = `Time series: ${values.join(', ')}\nForecast: ${forecast_filtered.join(', ')}`;
-  var interpretation = call_llm(systemContent, userContent);
-  PropertiesService.getScriptProperties().setProperty("INTERPRETATION", interpretation);
-
-  return [forecast_filtered];
-}
-
-
-function predict2(range_str="H1:DG2", target=15) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+function predict(range_str = "H1:DG2", target = 15) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Item");
+  // const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const range = sheet.getRange(range_str);
   const history = range.getValues();
 
@@ -170,12 +138,18 @@ function predict2(range_str="H1:DG2", target=15) {
     .map(d => d.toISOString().slice(0, 10));
 
   const values = history[1].map(Number);
-  const forecast = fetchData(timestamps, values, target);
+  const result = fetchData(timestamps, values, target);
 
-  const forecast_filtered = forecast.map(v => {
+  if (!result || !Array.isArray(result.forecast)) {
+    throw new Error("Invalid forecast result: " + JSON.stringify(result));
+  }
+
+  const forecast_filtered = result.forecast.map(v => {
     const val = Math.ceil(v);
     return val < 0 ? 0 : val;
   });
+
+  const forecastDates = result.timestamps;
 
   const systemPrompt = `
     You are analytics assistant. 
@@ -200,9 +174,50 @@ function predict2(range_str="H1:DG2", target=15) {
   sheet.getRange(range.getRow() + 1, writeStartCol, 1, forecast_filtered.length)
     .setValues([forecast_filtered]);
 
+  if (forecastDates && forecastDates.length === forecast_filtered.length) {
+    sheet.getRange(range.getRow(), writeStartCol, 1, forecastDates.length)
+      .setValues([forecastDates]);
+  }
+
+  // Plot with EmbeddedChartBuilder  
+  const plotStartRow = 50;
+  const plotStartCol = 1;
+
+  const header = [["Индекс", "История", "Прогноз"]];
+  const allRows = [];
+
+  const totalLen = values.length + forecast_filtered.length;
+  for (let i = 0; i < totalLen; i++) {
+    const idx = i + 1;
+    const histVal = i < values.length ? values[i] : null;
+    const forecastVal = i >= values.length ? forecast_filtered[i - values.length] : null;
+    allRows.push([idx.toString(), histVal, forecastVal]);
+  }
+
+  // Вставка в таблицу
+  sheet.getRange(plotStartRow, plotStartCol, 1, 3).setValues(header);
+  sheet.getRange(plotStartRow + 1, plotStartCol, allRows.length, 3).setValues(allRows);
+
+  // Построение графика
+  const chart = sheet.newChart()
+    .setChartType(Charts.ChartType.LINE)
+    .addRange(sheet.getRange(plotStartRow, plotStartCol, allRows.length + 1, 3))
+    .setOption("title", "Sales")
+    .setOption("curveType", "function")
+    .setOption("legend", { position: "bottom" })
+    .setOption("series", {
+      0: { labelInLegend: "History" },
+      1: { labelInLegend: "Forecast" },
+    })
+    .setOption("pointSize", 3)
+    .setOption("lineWidth", 2)
+    .setPosition(5, 5, 0, 0) // EA5
+    .build();
+
+  sheet.insertChart(chart);
+
   return interpretation;
 }
-
 
 
 /**
@@ -304,6 +319,12 @@ function initDefaults() {
   if (!props.getProperty("TS_MODEL")) {
     props.setProperty("TS_MODEL", "AutoARIMA");
   }
+  if (!props.getProperty("FIT_TIMESTAMPS")) {
+    props.setProperty("FIT_TIMESTAMPS", true);
+  }
+  if (!props.getProperty("SEASONALITY")) {
+    props.setProperty("SEASONALITY", 48);
+  }
 }
 
 
@@ -319,9 +340,24 @@ function selectModel(form) {
 /**
  * Sets TS_MODEL as global parameter.
  */
-function selectTSModel(modelName) {
-  PropertiesService.getScriptProperties().setProperty("TS_MODEL", modelName);
-  SpreadsheetApp.getActiveSpreadsheet().toast("Current TS model is " + PropertiesService.getScriptProperties().getProperty("TS_MODEL") + ".");
+// function selectTSModel(modelName) {
+//   PropertiesService.getScriptProperties().setProperty("TS_MODEL", modelName);
+//   SpreadsheetApp.getActiveSpreadsheet().toast("Current TS model is " + PropertiesService.getScriptProperties().getProperty("TS_MODEL") + ".");
+// }
+
+
+/**
+ * Sets time series model and its parameters as global properties.
+ * Example payload: { modelName: "AutoTBATS", fitTimestamps: true, seasonality: 48 }
+ */
+function selectTSModelWithParams(modelName, params) {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty("TS_MODEL", modelName);
+  props.setProperty("FIT_TIMESTAMPS", 
+    params.fitTimestamps === undefined ? true : params.fitTimestamps);
+  props.setProperty("SEASONALITY", 
+    params.seasonality === undefined ? 48 : Number(params.seasonality));
+  SpreadsheetApp.getActiveSpreadsheet().toast(`Current TS model is ${modelName}`);
 }
 
 
