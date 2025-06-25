@@ -11,24 +11,11 @@
       padding: 20px;
     }
 
-    h1 {
-      color: #fff;
-      font-weight: 500;
-    }
-
     form {
       background-color: #333;
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
-    }
-
-    label {
-      display: block;
-      margin-bottom: 6px;
-      color: #fff;
-      font-weight: 400;
-      font-size: 0.9em;
     }
 
     fieldset {
@@ -46,21 +33,37 @@
       margin-bottom: 10px;
     }
 
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #fff;
+      font-weight: 400;
+      font-size: 0.9em;
+    }
+
+    input[type="radio"] {
+      margin-right: 8px;
+    }
+
     .radio-group {
       display: flex;
       align-items: center;
       margin-bottom: 8px;
     }
 
-    input[type="radio"] {
-      appearance: auto;
-      margin: 0 6px 0 0;
+    .radio-group label {
+      margin: 0;
     }
 
-    .radio-group label {
-      display: inline;
-      margin: 0;
-      font-size: 0.95em;
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background-color: #222;
+      color: white;
+      box-sizing: border-box;
+      font-size: 0.9em;
     }
 
     input[type="button"] {
@@ -77,41 +80,15 @@
       background-color: #0056b3;
     }
 
-    input[type="text"] {
-      width: 100%;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #555;
-      background-color: #222;
-      color: white;
-      box-sizing: border-box;
-      font-size: 0.9em;
-    }
-
     #llm_output {
       background-color: #333;
       color: #fff;
-      font-family: 'Raleway', sans-serif;
       border: none;
       border-radius: 4px;
       padding: 8px;
-      resize: none;
-      box-shadow: none;
-      outline: none;
       width: 100%;
-      box-sizing: border-box;
-      overflow-y: scroll;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
+      resize: none;
       font-size: 0.9em;
-    }
-
-    #llm_output::-webkit-scrollbar {
-      display: none;
-    }
-
-    .spacer {
-      height: 20px;
     }
 
     .tab-container {
@@ -127,19 +104,16 @@
       border: none;
       cursor: pointer;
       font-weight: 500;
-      border-top-left-radius: 8px;
-      border-top-right-radius: 8px;
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
+      border-radius: 0;
     }
 
     .tab-button:first-child {
-      border-top-right-radius: 0;
+      border-top-left-radius: 8px;
       border-bottom-left-radius: 8px;
     }
 
     .tab-button:last-child {
-      border-top-left-radius: 0;
+      border-top-right-radius: 8px;
       border-bottom-right-radius: 8px;
     }
 
@@ -155,24 +129,74 @@
       display: block;
     }
 
-    .tab-button:first-child.active {
-      border-top-right-radius: 0;
-      border-bottom-left-radius: 8px;
+    .form-group {
+      margin-bottom: 10px;
     }
 
-    .tab-button:last-child.active {
-      border-top-left-radius: 0;
-      border-bottom-right-radius: 8px;
+    .switch-label {
+      font-size: 0.9em;
+      margin-bottom: 4px;
     }
 
+    label.switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+
+    label.switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    label.switch .slider {
+      position: absolute;
+      cursor: pointer;
+      background-color: #ccc;
+      border-radius: 34px;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transition: 0.4s;
+    }
+
+    label.switch .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: 0.4s;
+    }
+
+    label.switch input:checked + .slider {
+      background-color: #007BFF;
+    }
+
+    label.switch input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    .ts-options {
+      margin-left: 24px;
+    }
+
+    .spacer {
+      height: 20px;
+    }
   </style>
-
   <script>
     function switchTab(tabId) {
       document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
       document.getElementById(tabId).classList.add('active');
-      document.querySelector(`.tab-button[data-tab='${tabId}']`).classList.add('active');
+      document.querySelector(`[data-tab='${tabId}']`).classList.add('active');
     }
 
     function submitForm() {
@@ -185,25 +209,46 @@
     }
 
     function submitTSForm() {
-      const form = document.getElementById("tsForm");
-      if (form.ts_model.value) {
-        google.script.run.selectTSModel(form.ts_model.value);
-      } else {
-        alert("Please select a time series model.");
+      const model = document.querySelector('input[name="ts_model"]:checked');
+      if (!model) return alert("Please select a time series model.");
+      const selectedModel = model.value;
+      const params = {};
+      if (selectedModel === "AutoARIMA") {
+        params.fitTimestamps = document.getElementById("arima_fit_timestamps").checked;
+      } else if (selectedModel === "AutoTBATS") {
+        params.fitTimestamps = document.getElementById("tbats_fit_timestamps").checked;
+        params.seasonality = parseInt(document.getElementById("tbats_seasonality").value) || 48;
       }
+      google.script.run.selectTSModelWithParams(selectedModel, params);
     }
 
     function runForecast() {
       const history = document.getElementById("history").value;
       const target = document.getElementById("target").value;
       if (!history || !target) return alert("Please set all parameters.");
-      google.script.run.withSuccessHandler(function (interpretation ) {
-        document.getElementById("llm_output").value = interpretation  || "";
-      }).predict2(history, parseInt(target));
+      google.script.run.withSuccessHandler(function (interpretation) {
+        document.getElementById("llm_output").value = interpretation || "";
+      }).predict(history, parseInt(target));
     }
 
     window.onload = function () {
       document.querySelector('[data-tab="forecast"]').click();
+
+      const tsRadios = document.querySelectorAll('input[name="ts_model"]');
+      const options = {
+        autoarima: document.getElementById('autoarima-options'),
+        autotbats: document.getElementById('autotbats-options'),
+      };
+
+      function updateTSOptions() {
+        const selected = document.querySelector('input[name="ts_model"]:checked')?.id;
+        for (const key in options) {
+          options[key].style.display = key === selected ? 'block' : 'none';
+        }
+      }
+
+      tsRadios.forEach(radio => radio.addEventListener('change', updateTSOptions));
+      updateTSOptions();
     };
   </script>
 </head>
@@ -217,8 +262,8 @@
     <form>
       <fieldset>
         <legend>Forecast</legend>
-        <label for="histiry">History Range</label>
-        <input type="text" id="histiry" placeholder="H1:M2"><br><br>
+        <label for="history">History Range</label>
+        <input type="text" id="history" placeholder="H1:M2"><br><br>
         <label for="target">Forecast Length</label>
         <input type="text" id="target" placeholder="5"><br><br>
         <input type="button" value="Predict" onclick="runForecast();">
@@ -237,19 +282,38 @@
 
   <div id="settings" class="tab-content">
     <form id="tsForm">
-      <fieldset id="tsmodel">
+      <fieldset>
         <legend>TS Model</legend>
-        <!-- <input type="radio" id="autoarima" name="ts_model" value="AutoARIMA">
-        <label for="autoarima">AutoARIMA</label><br>
-        <input type="radio" id="autotbats" name="ts_model" value="AutoTBATS">
-        <label for="autotbats">AutoTBATS</label><br> -->
         <div class="radio-group">
           <input type="radio" id="autoarima" name="ts_model" value="AutoARIMA">
           <label for="autoarima">AutoARIMA</label>
         </div>
+        <div id="autoarima-options" class="ts-options" style="display:none;">
+          <div class="form-group">
+            <label class="switch-label">Fit timestamps</label>
+            <label class="switch">
+              <input type="checkbox" id="arima_fit_timestamps" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div class="radio-group">
           <input type="radio" id="autotbats" name="ts_model" value="AutoTBATS">
           <label for="autotbats">AutoTBATS</label>
+        </div>
+        <div id="autotbats-options" class="ts-options" style="display:none;">
+          <div class="form-group">
+            <label class="switch-label">Fit timestamps</label>
+            <label class="switch">
+              <input type="checkbox" id="tbats_fit_timestamps" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="tbats_seasonality">Seasonality</label>
+            <input type="text" id="tbats_seasonality" value="48" style="width: 80px;">
+          </div>
         </div>
       </fieldset>
       <input type="button" value="Submit" onclick="submitTSForm();">
@@ -258,14 +322,8 @@
     <div class="spacer"></div>
 
     <form id="llmForm">
-      <fieldset id="openai">
+      <fieldset>
         <legend>LLM</legend>
-        <!-- <input type="radio" id="gpt-4o-mini" name="model" value="gpt-4o-mini">
-        <label for="gpt-4o-mini">GPT 4 (Omni mini)</label><br>
-        <input type="radio" id="gpt-4.1-nano" name="model" value="gpt-4.1-nano">
-        <label for="gpt-4.1-nano">GPT 4.1 (nano)</label><br>
-        <input type="radio" id="gpt-4.1-mini" name="model" value="gpt-4.1-mini">
-        <label for="gpt-4.1-mini">GPT 4.1 (mini)</label><br> -->
         <div class="radio-group">
           <input type="radio" id="gpt-4o-mini" name="model" value="gpt-4o-mini">
           <label for="gpt-4o-mini">GPT 4 (Omni mini)</label>
