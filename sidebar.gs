@@ -3,6 +3,7 @@
 <head>
   <base target="_top">
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500&display=swap" rel="stylesheet">
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     body {
       font-family: 'Raleway', sans-serif;
@@ -87,8 +88,16 @@
       border-radius: 4px;
       padding: 8px;
       width: 100%;
-      resize: none;
+      height: 120px;
+      box-sizing: border-box;
       font-size: 0.9em;
+      overflow: auto;
+      resize: none; /* ⛔ Убирает треугольник и запрет на ручное изменение размера */
+      scrollbar-width: none; /* Firefox */
+    }
+
+    #llm_output::-webkit-scrollbar {
+      display: none; /* Chrome, Safari */
     }
 
     .tab-container {
@@ -192,6 +201,62 @@
     }
   </style>
   <script>
+    google.charts.load('current', {'packages':['corechart']});
+
+    function drawChart(history, forecast) {
+      google.charts.setOnLoadCallback(() => {
+        const data = new google.visualization.DataTable();
+        data.addColumn('number', 'Index');
+        data.addColumn('number', 'History');
+        data.addColumn('number', 'Forecast');
+
+        const rows = [];
+        for (let i = 0; i < history.length; i++) {
+          rows.push([i, history[i], null]);
+        }
+        for (let i = 0; i < forecast.length; i++) {
+          rows.push([history.length + i, null, forecast[i]]);
+        }
+        data.addRows(rows);
+
+        const options = {
+          curveType: 'function',
+          legend: {
+            position: 'bottom',
+            textStyle: { color: '#fff' }
+          },
+          backgroundColor: 'transparent',
+          chartArea: {
+            backgroundColor: 'transparent',
+            width: '85%',
+            height: '70%'
+          },
+          hAxis: {
+            textStyle: { color: '#fff' },
+            gridlines: { color: 'transparent' },
+            baselineColor: 'transparent',
+            ticks: []  // Тики X удалены
+          },
+          vAxis: {
+            textStyle: { color: '#fff' },
+            gridlines: { color: 'transparent' },
+            baselineColor: 'transparent',
+            ticks: []  // Тики Y удалены
+          },
+          series: {
+            0: { labelInLegend: 'History', color: '#4A90E2' },
+            1: { labelInLegend: 'Forecast', color: '#E74C3C' }
+          },
+          pointSize: 2,
+          lineWidth: 2
+        };
+
+        const chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+        chart.draw(data, options);
+      });
+    }
+
+
     function switchTab(tabId) {
       document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -226,8 +291,9 @@
       const history = document.getElementById("history").value;
       const target = document.getElementById("target").value;
       if (!history || !target) return alert("Please set all parameters.");
-      google.script.run.withSuccessHandler(function (interpretation) {
-        document.getElementById("llm_output").value = interpretation || "";
+      google.script.run.withSuccessHandler(function (result) {
+        document.getElementById("llm_output").value = result.interpretation || JSON.stringify(result);
+        drawChart(result.history, result.forecast);
       }).predict(history, parseInt(target));
     }
 
@@ -276,6 +342,15 @@
       <fieldset>
         <legend>Interpretation</legend>
         <textarea id="llm_output" rows="6" readonly></textarea>
+      </fieldset>
+    </form>
+
+    <div class="spacer"></div>
+
+    <form>
+      <fieldset>
+        <legend>Chart</legend>
+        <div id="chart_div" style="width: 100%; max-width: 300px; height: 200px; margin: auto;"></div>
       </fieldset>
     </form>
   </div>
