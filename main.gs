@@ -180,43 +180,47 @@ function predict(range_str = "H1:DG2", target = 15) {
   }
 
   // Plot with EmbeddedChartBuilder  
-  const plotStartRow = 50;
-  const plotStartCol = 1;
+  // const plotStartRow = 50;
+  // const plotStartCol = 1;
 
-  const header = [["Индекс", "История", "Прогноз"]];
-  const allRows = [];
+  // const header = [["Индекс", "История", "Прогноз"]];
+  // const allRows = [];
 
-  const totalLen = values.length + forecast_filtered.length;
-  for (let i = 0; i < totalLen; i++) {
-    const idx = i + 1;
-    const histVal = i < values.length ? values[i] : null;
-    const forecastVal = i >= values.length ? forecast_filtered[i - values.length] : null;
-    allRows.push([idx.toString(), histVal, forecastVal]);
-  }
+  // const totalLen = values.length + forecast_filtered.length;
+  // for (let i = 0; i < totalLen; i++) {
+  //   const idx = i + 1;
+  //   const histVal = i < values.length ? values[i] : null;
+  //   const forecastVal = i >= values.length ? forecast_filtered[i - values.length] : null;
+  //   allRows.push([idx.toString(), histVal, forecastVal]);
+  // }
 
-  // Вставка в таблицу
-  sheet.getRange(plotStartRow, plotStartCol, 1, 3).setValues(header);
-  sheet.getRange(plotStartRow + 1, plotStartCol, allRows.length, 3).setValues(allRows);
+  // // Вставка в таблицу
+  // sheet.getRange(plotStartRow, plotStartCol, 1, 3).setValues(header);
+  // sheet.getRange(plotStartRow + 1, plotStartCol, allRows.length, 3).setValues(allRows);
 
-  // Построение графика
-  const chart = sheet.newChart()
-    .setChartType(Charts.ChartType.LINE)
-    .addRange(sheet.getRange(plotStartRow, plotStartCol, allRows.length + 1, 3))
-    .setOption("title", "Sales")
-    .setOption("curveType", "function")
-    .setOption("legend", { position: "bottom" })
-    .setOption("series", {
-      0: { labelInLegend: "History" },
-      1: { labelInLegend: "Forecast" },
-    })
-    .setOption("pointSize", 3)
-    .setOption("lineWidth", 2)
-    .setPosition(5, 5, 0, 0) // EA5
-    .build();
+  // // Построение графика
+  // const chart = sheet.newChart()
+  //   .setChartType(Charts.ChartType.LINE)
+  //   .addRange(sheet.getRange(plotStartRow, plotStartCol, allRows.length + 1, 3))
+  //   .setOption("title", "Sales")
+  //   .setOption("curveType", "function")
+  //   .setOption("legend", { position: "bottom" })
+  //   .setOption("series", {
+  //     0: { labelInLegend: "History" },
+  //     1: { labelInLegend: "Forecast" },
+  //   })
+  //   .setOption("pointSize", 3)
+  //   .setOption("lineWidth", 2)
+  //   .setPosition(5, 5, 0, 0) // EA5
+  //   .build();
 
-  sheet.insertChart(chart);
+  // sheet.insertChart(chart);
 
-  return interpretation;
+  return {
+    interpretation: interpretation,
+    history: values,
+    forecast: forecast_filtered
+  };
 }
 
 
